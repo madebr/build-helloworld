@@ -1,0 +1,44 @@
+CC 		= cl /TC
+CXX 	= cl /TP
+AR		= lib
+LD      = link
+RC      = rc
+
+CFLAGS 	= -MD
+
+.PHONY: all
+all: exe_gui.exe exe_cli.exe
+
+.PHONY: clean
+clean:
+	rm -rf src_lib_static.o liblibrary_static.lib
+	rm -rf src_lib_shared.o src_gui_rc.o liblibrary_shared.lib liblibrary_shared.dll liblibrary_shared.exp
+	rm -f exe_gui.exe src_gui.o src_gui.res
+	rm -f exe_cli.exe src_cli.o
+
+src_cli.o: src_cli.c
+	$(CC) /nologo $(CPPFLAGS) $(CFLAGS) /Fo$@ /c $<
+
+exe_cli.exe: src_cli.o liblibrary_static.lib liblibrary_shared.lib
+	$(LD) /nologo $^ /OUT:$@ /MACHINE:X86 /SUBSYSTEM:CONSOLE user32.lib
+
+src_gui.o: src_gui.c
+	$(CC) /nologo $(CPPFLAGS) $(CFLAGS) /Fo$@ /c $<
+
+src_gui.res: src_gui.rc isle.ico
+	$(RC) /fo $@ $<
+
+exe_gui.exe: src_gui.o src_gui.res liblibrary_static.lib liblibrary_shared.lib
+	$(LD) /nologo src_gui.o src_gui.res /OUT:$@ /MACHINE:X86 /SUBSYSTEM:WINDOWS liblibrary_static.lib liblibrary_shared.lib user32.lib
+
+src_lib_static.o: src_lib_static.c src_lib_static.h
+	$(CC) /nologo $(CPPFLAGS) $(CFLAGS) /Fo$@ /c $<
+
+liblibrary_static.lib: src_lib_static.o
+	$(AR) /nologo /OUT:$@ /MACHINE:X86 $^
+
+src_lib_shared.o: src_lib_shared.c src_lib_shared.h
+	$(CC) /nologo $(CPPFLAGS) $(CFLAGS) /DBUILDING_SHARED_LIB /Fo$@ /c $<
+
+liblibrary_shared.lib liblibrary_shared.dll: src_lib_shared.o
+	$(LD) /nologo $^ /OUT:liblibrary_shared.dll /IMPLIB:liblibrary_shared.lib /DLL /MACHINE:X86 /SUBSYSTEM:CONSOLE
