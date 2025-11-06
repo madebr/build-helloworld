@@ -5,18 +5,19 @@
 #endif
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "src_lib_static.h"
 #include "src_lib_shared.h"
 
-#if defined(_MSC_VER) && _MSC_VER < 1400
-#define vsnprintf my_vsnprintf
-int my_vsnprintf(char *buffer, size_t bufferlen, const char *format, va_list ap)
+extern int my_vsnprintf(char *buffer, size_t bufferlen, const char *format, va_list ap)
 {
     char *ptr_write = buffer;
     for (;;) {
         char c = *format++;
         if (c == '\0') {
+            *ptr_write = '\0';
             break;
         }
         if (c == '%') {
@@ -28,6 +29,39 @@ int my_vsnprintf(char *buffer, size_t bufferlen, const char *format, va_list ap)
                 break;
             case '%':
                 *ptr_write++ = '%';
+                break;
+            case 'd':
+                {
+                    char digits[11];
+                    int digits_pos;
+                    int v = va_arg(ap, int);
+                    if ((unsigned)v == 0x80000000) {
+                        digits_pos = 0;
+                        memcpy(digits, "-2147483648", 11);
+                    } else {
+                        int negative = 0;
+                        if (v < 0) {
+                            negative = 1;
+                            v = -v;
+                        }
+                        digits[sizeof(digits)-1] = '0';
+                        digits_pos = 10;
+                        while (v) {
+                            digits[digits_pos] = '0' + (v % 10);
+                            v /= 10;
+                            if (v) {
+                                digits_pos--;
+                            }
+                        }
+                        if (negative) {
+                            digits_pos--;
+                            digits[digits_pos] = '-';
+                        }
+                    }
+                    while (digits_pos < 11) {
+                        *ptr_write++ = digits[digits_pos++];
+                    }
+                }
                 break;
             case 's':
                 {
@@ -46,33 +80,29 @@ int my_vsnprintf(char *buffer, size_t bufferlen, const char *format, va_list ap)
     }
     return ptr_write - buffer;
 }
-#endif
 
 static void show_something(const char *format, ...)
 {
-#ifdef _WIN32
   char buffer[512];
   va_list ap;
   va_start(ap, format);
-  vsnprintf(buffer, sizeof(buffer), format, ap);
+  my_vsnprintf(buffer, sizeof(buffer), format, ap);
   va_end(ap);
   buffer[sizeof(buffer) - 1] = '\0';
+#ifdef _WIN32
   MessageBoxA(NULL, buffer, "title", MB_OK);
 #else
-  va_list ap;
-  va_start(ap, format);
-  vprintf(format, ap);
-  va_end(ap);
+  printf("%s\n", buffer);
 #endif
 }
 
 static void do_compiler_detection()
 {
-#ifdef __MSC_VER
-  show_something("Microsoft Compiler %s\n", _MSC_VER);
+#ifdef _MSC_VER
+  show_something("Microsoft Compiler %d", _MSC_VER);
 #endif
 #ifdef __GNUC__
-  show_something("GNU compiler: %d\n", __GNUC__);
+  show_something("GNU compiler: %d", __GNUC__);
 #endif
 }
 
@@ -89,11 +119,11 @@ int main(int argc, char *argv[])
 {
   int i;
   do_compiler_detection();
-  show_something("Shared/static library test: %d, %d\n",
+  show_something("Shared/static library test: %d, %d",
     function_from_shared_library(1),
     function_from_static_library(1));
   for (i = 0; i < argc; i++) {
-    show_something("argv[%d] = \"%s\"\n", i, argv[i]);
+    show_something("argv[%d] = \"%s\"", i, argv[i]);
   }
   return 0;
 }
